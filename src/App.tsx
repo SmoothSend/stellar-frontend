@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { WalletConnect } from './components/WalletConnect';
 import { BalanceDisplay } from './components/BalanceDisplay';
 import { TransferForm } from './components/TransferForm';
+import { ClaimableBalanceList } from './components/ClaimableBalanceList';
 import { RelayerStatus } from './components/RelayerStatus';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
-import { Card } from './components/ui/Card';
-import { Button } from './components/ui/Button';
+import { Card } from './components/ui/card';
+import { Button } from './components/ui/button';
 
 function App() {
   const [address, setAddress] = useState<string | null>(null);
@@ -30,7 +31,10 @@ function App() {
               {view === 'dashboard' ? (
                 <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-300">
                   <BalanceDisplay address={address} />
-                  
+
+                  {/* Pending Claims Section */}
+                  <ClaimableBalanceList address={address} />
+
                   <div className="flex gap-4">
                     <Button
                       className="flex-1 h-14 text-lg rounded-2xl bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 shadow-none"
@@ -70,7 +74,7 @@ function App() {
                 The easiest way to send assets on Stellar. Zero fees, zero friction.
               </p>
             </div>
-            
+
             <div className="flex flex-col items-center gap-4">
               <WalletConnect address={address} onConnect={setAddress} />
               <p className="text-white/20 text-sm">Supports Freighter, Lobstr, xBull & more</p>

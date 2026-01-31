@@ -5,10 +5,10 @@ export const config = {
   network: 'testnet' as const,
   networkPassphrase: StellarSdk.Networks.TESTNET,
   horizonUrl: 'https://horizon-testnet.stellar.org',
-  
+
   // Relayer
   relayerUrl: 'http://localhost:3001',
-  
+
   // Assets
   assets: {
     XLM: {
@@ -23,8 +23,14 @@ export const config = {
       decimals: 7,
       name: 'USD Coin',
     },
+    EURC: {
+      code: 'EURC',
+      issuer: 'GB3Q6QDZYTHWT7E5PVS3W7FUT5GVAFC5KSZFFLPU25GO7VTC3NM2ZTVO', // Circle testnet
+      decimals: 7,
+      name: 'Euro Coin',
+    },
   },
-  
+
   // Explorer
   explorerUrl: 'https://stellar.expert/explorer/testnet',
 };

@@ -1,4 +1,4 @@
-import { Button } from "./ui/Button";
+
 
 interface HeaderProps {
   children?: React.ReactNode;
@@ -11,10 +11,10 @@ export function Header({ children }: HeaderProps) {
         <div className="flex items-center space-x-3">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-            <img 
-              src="/logo.svg" 
-              alt="SmoothSend" 
-              className="relative h-8 w-8 md:h-10 md:w-10 object-contain bg-background rounded-lg p-1" 
+            <img
+              src="/logo.svg"
+              alt="SmoothSend"
+              className="relative h-8 w-8 md:h-10 md:w-10 object-contain bg-background rounded-lg p-1"
             />
           </div>
           <div>

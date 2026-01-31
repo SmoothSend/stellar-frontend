@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { buildPaymentTransaction, relayTransaction } from '../lib/stellar';
+import { buildSmartPaymentTransaction, relayTransaction } from '../lib/stellar';
 import { signTransaction } from '../lib/wallet';
 import { config, AssetCode } from '../lib/config';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 interface TransferFormProps {
   senderAddress: string;
@@ -21,39 +21,41 @@ export function TransferForm({ senderAddress, onSuccess, onCancel }: TransferFor
     message?: string;
     hash?: string;
     explorerUrl?: string;
+    isClaimable?: boolean;
   }>({ type: 'idle' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!recipient || !amount) {
       setStatus({ type: 'error', message: 'Please fill in all fields' });
       return;
     }
 
     setLoading(true);
-    
+
     try {
-      setStatus({ type: 'building', message: 'Building transaction...' });
-      const transaction = await buildPaymentTransaction(
+      setStatus({ type: 'building', message: 'Checking recipient & building transaction...' });
+      const { transaction, isClaimable } = await buildSmartPaymentTransaction(
         senderAddress,
         recipient,
         amount,
         asset
       );
-      
+
       setStatus({ type: 'signing', message: 'Check your wallet to sign...' });
       const signedXDR = await signTransaction(transaction.toXDR());
-      
+
       setStatus({ type: 'relaying', message: 'Sponsoring fee & submitting...' });
       const result = await relayTransaction(signedXDR);
-      
+
       if (result.success && result.hash) {
         setStatus({
           type: 'success',
-          message: 'Success!',
+          message: isClaimable ? 'Claimable Balance Created!' : 'Payment Sent!',
           hash: result.hash,
           explorerUrl: result.explorerUrl,
+          isClaimable,
         });
         onSuccess?.(result.hash);
       } else {
@@ -80,9 +82,15 @@ export function TransferForm({ senderAddress, onSuccess, onCancel }: TransferFor
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h3 className="text-2xl font-bold text-white">Transaction Sent!</h3>
-        <p className="text-muted-foreground">Your gasless transfer was successfully relayed.</p>
-        
+        <h3 className="text-2xl font-bold text-white">
+          {status.isClaimable ? 'Claimable Balance Created!' : 'Payment Sent!'}
+        </h3>
+        <p className="text-muted-foreground">
+          {status.isClaimable
+            ? 'Recipient can claim this balance once they create a trustline.'
+            : 'Your gasless transfer was successfully relayed.'}
+        </p>
+
         <div className="space-y-3">
           <Button
             className="w-full"
@@ -106,36 +114,44 @@ export function TransferForm({ senderAddress, onSuccess, onCancel }: TransferFor
     <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <div className="space-y-4">
         {/* Asset Selection */}
-        <div className="grid grid-cols-2 gap-3">
-          {(Object.keys(config.assets) as AssetCode[]).map((assetCode) => (
-            <button
-              key={assetCode}
-              type="button"
-              onClick={() => setAsset(assetCode)}
-              className={`flex items-center gap-3 p-4 rounded-xl border transition-all relative overflow-hidden group ${
-                asset === assetCode
+        <div className="grid grid-cols-3 gap-3">
+          {(Object.keys(config.assets) as AssetCode[]).map((assetCode) => {
+            const assetInfo = config.assets[assetCode];
+            const getIcon = () => {
+              if (assetCode === 'XLM') return '/stellar.svg';
+              if (assetCode === 'USDC') return 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029';
+              if (assetCode === 'EURC') return '/eurc.svg';
+              return '/stellar.svg';
+            };
+            const getBgColor = () => {
+              if (assetCode === 'XLM') return 'bg-blue-500/20';
+              if (assetCode === 'USDC') return 'bg-green-500/20';
+              if (assetCode === 'EURC') return 'bg-blue-400/20';
+              return 'bg-gray-500/20';
+            };
+            return (
+              <button
+                key={assetCode}
+                type="button"
+                onClick={() => setAsset(assetCode)}
+                className={`flex items-center gap-2 p-3 rounded-xl border transition-all relative overflow-hidden group ${asset === assetCode
                   ? 'bg-primary/10 border-primary shadow-[0_0_20px_rgba(117,149,255,0.1)]'
                   : 'bg-white/5 border-transparent hover:bg-white/10'
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center relative z-10 transition-transform duration-300 group-hover:scale-110 ${
-                assetCode === 'XLM' ? 'bg-blue-500/20' : 'bg-green-500/20'
-              }`}>
-                {assetCode === 'XLM' ? (
-                  <img src="/stellar.svg" className="w-6 h-6" alt="XLM" />
-                ) : (
-                  <img src="https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029" className="w-6 h-6" alt="USDC" />
+                  }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center relative z-10 transition-transform duration-300 group-hover:scale-110 ${getBgColor()}`}>
+                  <img src={getIcon()} className="w-5 h-5" alt={assetCode} />
+                </div>
+                <div className="text-left relative z-10">
+                  <div className={`font-bold text-xs ${asset === assetCode ? 'text-white' : 'text-white/40'}`}>{assetCode}</div>
+                  <div className="text-[9px] text-white/30 uppercase font-bold tracking-wide">{assetInfo.name.split(' ')[0]}</div>
+                </div>
+                {asset === assetCode && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
                 )}
-              </div>
-              <div className="text-left relative z-10">
-                <div className={`font-bold text-sm ${asset === assetCode ? 'text-white' : 'text-white/40'}`}>{assetCode}</div>
-                <div className="text-[10px] text-white/30 uppercase font-bold tracking-widest">{assetCode === 'XLM' ? 'Lumens' : 'Circle'}</div>
-              </div>
-              {asset === assetCode && (
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
-              )}
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
         {/* Amount Input */}

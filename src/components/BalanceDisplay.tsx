@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAccountBalances, AccountBalance } from '../lib/stellar';
-import { config } from '../lib/config';
+
 
 interface BalanceDisplayProps {
   address: string;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { connectWallet, getConnectedAddress } from '../lib/wallet';
-import { Button } from './ui/Button';
+import { Button } from './ui/button';
 
 interface WalletConnectProps {
   address: string | null;
