@@ -6,8 +6,8 @@ export const config = {
   networkPassphrase: StellarSdk.Networks.TESTNET,
   horizonUrl: 'https://horizon-testnet.stellar.org',
 
-  // Relayer
-  relayerUrl: 'http://localhost:3001',
+  // Relayer (set VITE_RELAYER_URL in .env or Vercel env vars)
+  relayerUrl: import.meta.env.VITE_RELAYER_URL || 'http://localhost:3001',
 
   // Assets
   assets: {
