@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAccountBalances, AccountBalance } from '../lib/stellar';
-
+import { config, AssetCode } from '../lib/config';
 
 interface BalanceDisplayProps {
   address: string;
@@ -27,9 +27,41 @@ export function BalanceDisplay({ address }: BalanceDisplayProps) {
     }
   };
 
-  const getBalance = (code: string) => {
-    const b = balances.find((b) => b.asset === code);
+  const getBalance = (code: AssetCode) => {
+    const assetDef = config.assets[code];
+    const b = balances.find((b) => b.asset === code && (!assetDef.issuer || b.issuer === assetDef.issuer));
     return b ? parseFloat(b.balance).toFixed(2) : '0.00';
+  };
+
+  const getAssetStyle = (code: AssetCode) => {
+    if (code === 'XLM') return {
+      borderColor: 'hover:border-blue-500/20',
+      iconBg: 'bg-blue-500/10',
+      iconBorder: 'border-blue-500/20',
+      shadow: 'shadow-[0_0_15px_rgba(59,130,246,0.1)]',
+      img: '/stellar.svg'
+    };
+    if (code === 'USDC') return {
+      borderColor: 'hover:border-green-500/20',
+      iconBg: 'bg-green-500/10',
+      iconBorder: 'border-green-500/20',
+      shadow: 'shadow-[0_0_15px_rgba(34,197,94,0.1)]',
+      img: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029'
+    };
+    if (code === 'EURC') return {
+      borderColor: 'hover:border-blue-400/20',
+      iconBg: 'bg-blue-400/10',
+      iconBorder: 'border-blue-400/20',
+      shadow: 'shadow-[0_0_15px_rgba(96,165,250,0.1)]',
+      img: '/eurc.svg'
+    };
+    return {
+      borderColor: 'hover:border-gray-500/20',
+      iconBg: 'bg-gray-500/10',
+      iconBorder: 'border-gray-500/20',
+      shadow: 'shadow-none',
+      img: '/stellar.svg'
+    };
   };
 
   return (
@@ -42,44 +74,31 @@ export function BalanceDisplay({ address }: BalanceDisplayProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* XLM Card */}
-        <div className="phantom-card rounded-2xl p-5 border border-white/5 hover:border-primary/20 transition-all group overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
-            <img src="/stellar.svg" className="w-16 h-16 grayscale invert" alt="" />
-          </div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-              <img src="/stellar.svg" className="w-6 h-6" alt="XLM" />
-            </div>
-            <div>
-              <span className="text-white font-bold block leading-none">XLM</span>
-              <span className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Stellar Lumens</span>
-            </div>
-          </div>
-          <div className="text-2xl font-black text-white tracking-tighter">
-            {loading ? '...' : getBalance('XLM')}
-          </div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {(Object.keys(config.assets) as AssetCode[]).map((code) => {
+          const style = getAssetStyle(code);
+          const assetInfo = config.assets[code];
 
-        {/* USDC Card */}
-        <div className="phantom-card rounded-2xl p-5 border border-white/5 hover:border-green-500/20 transition-all group overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
-            <img src="https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029" className="w-16 h-16" alt="" />
-          </div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]">
-              <img src="https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029" className="w-6 h-6" alt="USDC" />
+          return (
+            <div key={code} className={`phantom-card rounded-2xl p-5 border border-white/5 ${style.borderColor} transition-all group overflow-hidden relative`}>
+              <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                <img src={style.img} className="w-16 h-16 grayscale invert" alt="" />
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-xl ${style.iconBg} flex items-center justify-center border ${style.iconBorder} ${style.shadow}`}>
+                  <img src={style.img} className="w-6 h-6" alt={code} />
+                </div>
+                <div>
+                  <span className="text-white font-bold block leading-none">{code}</span>
+                  <span className="text-[10px] text-white/30 uppercase font-bold tracking-widest">{assetInfo.name}</span>
+                </div>
+              </div>
+              <div className="text-2xl font-black text-white tracking-tighter">
+                {loading ? '...' : getBalance(code)}
+              </div>
             </div>
-            <div>
-              <span className="text-white font-bold block leading-none">USDC</span>
-              <span className="text-[10px] text-white/30 uppercase font-bold tracking-widest">USD Coin</span>
-            </div>
-          </div>
-          <div className="text-2xl font-black text-white tracking-tighter">
-            {loading ? '...' : getBalance('USDC')}
-          </div>
-        </div>
+          );
+        })}
       </div>
     </div>
   );
