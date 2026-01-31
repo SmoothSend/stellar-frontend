@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { connectWallet, getConnectedAddress, disconnectWallet } from '../lib/wallet';
 import { Button } from './ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, Loader2 } from 'lucide-react';
 
 interface WalletConnectProps {
   address: string | null;
@@ -10,31 +10,35 @@ interface WalletConnectProps {
 
 export function WalletConnect({ address, onConnect }: WalletConnectProps) {
   const [loading, setLoading] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
-    // Only check on initial mount, not on every render
+    // Only check on initial mount if not already connected
     if (!address) {
       checkConnection();
     }
   }, []);
 
   const checkConnection = async () => {
-    const addr = await getConnectedAddress();
-    if (addr) {
-      onConnect(addr);
+    try {
+      const addr = await getConnectedAddress();
+      if (addr) {
+        onConnect(addr);
+      }
+    } catch (e) {
+      // No existing connection, that's fine
     }
   };
 
   const handleConnect = async () => {
-    if (loading) return; // Prevent double-clicks
+    if (loading) return;
 
     setLoading(true);
     try {
       const { address } = await connectWallet();
       onConnect(address);
     } catch (error: any) {
-      // Ignore "modal already open" errors
-      if (!error.message?.includes('already open')) {
+      if (!error.message?.includes('already in progress')) {
         console.error('Failed to connect wallet:', error);
       }
     } finally {
@@ -42,9 +46,18 @@ export function WalletConnect({ address, onConnect }: WalletConnectProps) {
     }
   };
 
-  const handleDisconnect = () => {
-    disconnectWallet();
-    onConnect(null);
+  const handleDisconnect = async () => {
+    if (disconnecting) return;
+
+    setDisconnecting(true);
+    try {
+      await disconnectWallet();
+      onConnect(null);
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+    } finally {
+      setDisconnecting(false);
+    }
   };
 
   const truncateAddress = (addr: string) => {
@@ -63,9 +76,14 @@ export function WalletConnect({ address, onConnect }: WalletConnectProps) {
           size="icon"
           className="rounded-full w-10 h-10 hover:bg-red-500/10 hover:text-red-500 transition-colors"
           onClick={handleDisconnect}
+          disabled={disconnecting}
           title="Disconnect Wallet"
         >
-          <LogOut className="w-4 h-4" />
+          {disconnecting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <LogOut className="w-4 h-4" />
+          )}
         </Button>
       </div>
     );
@@ -77,7 +95,14 @@ export function WalletConnect({ address, onConnect }: WalletConnectProps) {
       disabled={loading}
       className="rounded-full px-8 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all font-bold"
     >
-      {loading ? 'Connecting...' : 'Connect Wallet'}
+      {loading ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Connecting...
+        </>
+      ) : (
+        'Connect Wallet'
+      )}
     </Button>
   );
 }

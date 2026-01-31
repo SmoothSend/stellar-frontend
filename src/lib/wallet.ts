@@ -7,7 +7,7 @@ import {
 import { config } from './config';
 
 let kit: StellarWalletsKit | null = null;
-let isModalOpen = false;
+let isConnecting = false;
 
 export function getWalletKit(): StellarWalletsKit {
   if (!kit) {
@@ -21,14 +21,14 @@ export function getWalletKit(): StellarWalletsKit {
 }
 
 export async function connectWallet(): Promise<{ address: string }> {
-  // Prevent multiple modals
-  if (isModalOpen) {
-    throw new Error('Wallet modal is already open');
+  // Prevent multiple connection attempts
+  if (isConnecting) {
+    throw new Error('Connection already in progress');
   }
 
+  isConnecting = true;
   const walletKit = getWalletKit();
 
-  isModalOpen = true;
   try {
     await walletKit.openModal({
       onWalletSelected: async (option) => {
@@ -39,7 +39,7 @@ export async function connectWallet(): Promise<{ address: string }> {
     const { address } = await walletKit.getAddress();
     return { address };
   } finally {
-    isModalOpen = false;
+    isConnecting = false;
   }
 }
 
@@ -58,7 +58,7 @@ export async function signTransaction(xdr: string): Promise<string> {
 export async function getConnectedAddress(): Promise<string | null> {
   try {
     const walletKit = getWalletKit();
-    const { address } = await walletKit.getAddress();
+    const { address } = await walletKit.getAddress({ skipRequestAccess: true });
     return address;
   } catch {
     return null;
@@ -66,10 +66,16 @@ export async function getConnectedAddress(): Promise<string | null> {
 }
 
 /**
- * Disconnect wallet and reset the kit
+ * Properly disconnect wallet using the kit's disconnect method
  */
-export function disconnectWallet(): void {
+export async function disconnectWallet(): Promise<void> {
+  if (kit) {
+    try {
+      await kit.disconnect();
+    } catch (e) {
+      console.warn('Disconnect error:', e);
+    }
+  }
   kit = null;
-  isModalOpen = false;
+  isConnecting = false;
 }
-
