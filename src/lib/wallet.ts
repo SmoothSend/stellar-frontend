@@ -8,6 +8,7 @@ import { config } from './config';
 
 let kit: StellarWalletsKit | null = null;
 let isConnecting = false;
+let hasDisconnected = false; // Track explicit disconnect
 
 export function getWalletKit(): StellarWalletsKit {
   if (!kit) {
@@ -21,12 +22,12 @@ export function getWalletKit(): StellarWalletsKit {
 }
 
 export async function connectWallet(): Promise<{ address: string }> {
-  // Prevent multiple connection attempts
   if (isConnecting) {
     throw new Error('Connection already in progress');
   }
 
   isConnecting = true;
+  hasDisconnected = false; // Reset disconnect flag on new connection
   const walletKit = getWalletKit();
 
   try {
@@ -56,6 +57,11 @@ export async function signTransaction(xdr: string): Promise<string> {
 }
 
 export async function getConnectedAddress(): Promise<string | null> {
+  // If user explicitly disconnected, don't auto-reconnect
+  if (hasDisconnected) {
+    return null;
+  }
+
   try {
     const walletKit = getWalletKit();
     const { address } = await walletKit.getAddress({ skipRequestAccess: true });
@@ -66,9 +72,11 @@ export async function getConnectedAddress(): Promise<string | null> {
 }
 
 /**
- * Properly disconnect wallet using the kit's disconnect method
+ * Properly disconnect wallet
  */
 export async function disconnectWallet(): Promise<void> {
+  hasDisconnected = true; // Mark as explicitly disconnected
+
   if (kit) {
     try {
       await kit.disconnect();
