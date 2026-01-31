@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { connectWallet, getConnectedAddress } from '../lib/wallet';
+import { connectWallet, getConnectedAddress, disconnectWallet } from '../lib/wallet';
 import { Button } from './ui/button';
 import { LogOut } from 'lucide-react';
 
@@ -12,7 +12,10 @@ export function WalletConnect({ address, onConnect }: WalletConnectProps) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    checkConnection();
+    // Only check on initial mount, not on every render
+    if (!address) {
+      checkConnection();
+    }
   }, []);
 
   const checkConnection = async () => {
@@ -23,15 +26,25 @@ export function WalletConnect({ address, onConnect }: WalletConnectProps) {
   };
 
   const handleConnect = async () => {
+    if (loading) return; // Prevent double-clicks
+
     setLoading(true);
     try {
       const { address } = await connectWallet();
       onConnect(address);
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
+    } catch (error: any) {
+      // Ignore "modal already open" errors
+      if (!error.message?.includes('already open')) {
+        console.error('Failed to connect wallet:', error);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDisconnect = () => {
+    disconnectWallet();
+    onConnect(null);
   };
 
   const truncateAddress = (addr: string) => {
@@ -49,8 +62,8 @@ export function WalletConnect({ address, onConnect }: WalletConnectProps) {
           variant="ghost"
           size="icon"
           className="rounded-full w-10 h-10 hover:bg-red-500/10 hover:text-red-500 transition-colors"
-          onClick={() => onConnect(null)}
-          title="Disconnect"
+          onClick={handleDisconnect}
+          title="Disconnect Wallet"
         >
           <LogOut className="w-4 h-4" />
         </Button>

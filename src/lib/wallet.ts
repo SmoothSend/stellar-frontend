@@ -7,6 +7,7 @@ import {
 import { config } from './config';
 
 let kit: StellarWalletsKit | null = null;
+let isModalOpen = false;
 
 export function getWalletKit(): StellarWalletsKit {
   if (!kit) {
@@ -20,27 +21,37 @@ export function getWalletKit(): StellarWalletsKit {
 }
 
 export async function connectWallet(): Promise<{ address: string }> {
+  // Prevent multiple modals
+  if (isModalOpen) {
+    throw new Error('Wallet modal is already open');
+  }
+
   const walletKit = getWalletKit();
-  
-  await walletKit.openModal({
-    onWalletSelected: async (option) => {
-      walletKit.setWallet(option.id);
-    },
-  });
-  
-  const { address } = await walletKit.getAddress();
-  return { address };
+
+  isModalOpen = true;
+  try {
+    await walletKit.openModal({
+      onWalletSelected: async (option) => {
+        walletKit.setWallet(option.id);
+      },
+    });
+
+    const { address } = await walletKit.getAddress();
+    return { address };
+  } finally {
+    isModalOpen = false;
+  }
 }
 
 export async function signTransaction(xdr: string): Promise<string> {
   const walletKit = getWalletKit();
   const { address } = await walletKit.getAddress();
-  
+
   const { signedTxXdr } = await walletKit.signTransaction(xdr, {
     networkPassphrase: config.networkPassphrase,
     address,
   });
-  
+
   return signedTxXdr;
 }
 
@@ -53,3 +64,12 @@ export async function getConnectedAddress(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Disconnect wallet and reset the kit
+ */
+export function disconnectWallet(): void {
+  kit = null;
+  isModalOpen = false;
+}
+
