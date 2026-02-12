@@ -217,24 +217,24 @@ export async function relayTransaction(signedXDR: string): Promise<{
   error?: string;
   explorerUrl?: string;
 }> {
-  const apiKey = import.meta.env.VITE_SMOOTHSEND_API_KEY;
-  if (apiKey) {
-    // ========== SMOOTHSEND SDK INTEGRATION - START ==========
-    // Gasless tx via @smoothsend/sdk → proxy.smoothsend.xyz → Stellar relayer
-    try {
-      const { SmoothSendSDK } = await import('@smoothsend/sdk');
-      const sdk = new SmoothSendSDK({ apiKey, network: config.network });
-      const result = await sdk.submitStellarTransaction(signedXDR);
-      return {
-        success: true,
-        hash: result.txHash,
-        explorerUrl: result.explorerUrl ?? `${config.explorerUrl}/tx/${result.txHash}`,
-      };
-    } catch (error: any) {
-      return { success: false, error: error.message || 'SDK relay failed' };
-    }
-    // ========== SMOOTHSEND SDK INTEGRATION - END ==========
-  }
+  // const apiKey = import.meta.env.VITE_SMOOTHSEND_API_KEY;
+  // if (apiKey) {
+  //   // ========== SMOOTHSEND SDK INTEGRATION - START ==========
+  //   // Gasless tx via @smoothsend/sdk → proxy.smoothsend.xyz → Stellar relayer
+  //   try {
+  //     const { SmoothSendSDK } = await import('@smoothsend/sdk');
+  //     const sdk = new SmoothSendSDK({ apiKey, network: config.network });
+  //     const result = await sdk.submitStellarTransaction(signedXDR);
+  //     return {
+  //       success: true,
+  //       hash: result.txHash,
+  //       explorerUrl: result.explorerUrl ?? `${config.explorerUrl}/tx/${result.txHash}`,
+  //     };
+  //   } catch (error: any) {
+  //     return { success: false, error: error.message || 'SDK relay failed' };
+  //   }
+  //   // ========== SMOOTHSEND SDK INTEGRATION - END ==========
+  // }
 
   const { baseUrl, headers } = getStellarApiConfig();
   try {
