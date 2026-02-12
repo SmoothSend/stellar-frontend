@@ -1,5 +1,5 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { config, AssetCode } from './config';
+import { config, getStellarApiConfig, AssetCode } from './config';
 
 const server = new StellarSdk.Horizon.Server(config.horizonUrl);
 
@@ -19,6 +19,10 @@ export interface ClaimableBalance {
 }
 
 export async function getAccountBalances(address: string): Promise<AccountBalance[]> {
+  // C-addresses (Soroban contracts) can't be looked up on Horizon
+  if (address.startsWith('C')) {
+    return [];
+  }
   try {
     const account = await server.loadAccount(address);
     return account.balances.map((b) => {
@@ -41,6 +45,10 @@ export async function getAccountBalances(address: string): Promise<AccountBalanc
 }
 
 export async function accountExists(address: string): Promise<boolean> {
+  // C-addresses exist on Soroban, not Horizon
+  if (address.startsWith('C')) {
+    return true;
+  }
   try {
     await server.loadAccount(address);
     return true;
@@ -96,6 +104,12 @@ export async function checkTrustline(
   // XLM doesn't need a trustline
   if (assetCode === 'XLM') {
     console.log('[SmartPayment] XLM - no trustline needed');
+    return true;
+  }
+
+  // C-addresses (Soroban contracts) don't use trustlines
+  if (destinationAddress.startsWith('C')) {
+    console.log('[SmartPayment] C-address destination — no trustline check needed');
     return true;
   }
 
@@ -193,42 +207,53 @@ export async function buildSmartPaymentTransaction(
   }
 }
 
+/**
+ * Submit signed XDR via proxy (SDK) or direct relayer.
+ * All calls go through proxy when VITE_SMOOTHSEND_API_KEY is set.
+ */
 export async function relayTransaction(signedXDR: string): Promise<{
   success: boolean;
   hash?: string;
   error?: string;
   explorerUrl?: string;
 }> {
+  const apiKey = import.meta.env.VITE_SMOOTHSEND_API_KEY;
+  if (apiKey) {
+    // ========== SMOOTHSEND SDK INTEGRATION - START ==========
+    // Gasless tx via @smoothsend/sdk → proxy.smoothsend.xyz → Stellar relayer
+    try {
+      const { SmoothSendSDK } = await import('@smoothsend/sdk');
+      const sdk = new SmoothSendSDK({ apiKey, network: config.network });
+      const result = await sdk.submitStellarTransaction(signedXDR);
+      return {
+        success: true,
+        hash: result.txHash,
+        explorerUrl: result.explorerUrl ?? `${config.explorerUrl}/tx/${result.txHash}`,
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'SDK relay failed' };
+    }
+    // ========== SMOOTHSEND SDK INTEGRATION - END ==========
+  }
+
+  const { baseUrl, headers } = getStellarApiConfig();
   try {
-    const response = await fetch(`${config.relayerUrl}/api/v1/relayer/gasless-transaction`, {
+    const res = await fetch(`${baseUrl}/api/v1/relayer/gasless-transaction`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        signedTransaction: signedXDR,
-      }),
+      headers,
+      body: JSON.stringify({ signedTransaction: signedXDR }),
     });
-
-    const data = await response.json();
-
+    const data = await res.json();
     if (data.success) {
       return {
         success: true,
         hash: data.hash || data.txnHash,
         explorerUrl: `${config.explorerUrl}/tx/${data.hash || data.txnHash}`,
       };
-    } else {
-      return {
-        success: false,
-        error: data.error || 'Transaction failed',
-      };
     }
+    return { success: false, error: data.error || 'Transaction failed' };
   } catch (error: any) {
-    return {
-      success: false,
-      error: error.message || 'Failed to connect to relayer',
-    };
+    return { success: false, error: error.message || 'Failed to connect' };
   }
 }
 
@@ -237,10 +262,10 @@ export async function checkRelayerHealth(): Promise<{
   balance?: string;
   address?: string;
 }> {
+  const { baseUrl, headers } = getStellarApiConfig();
   try {
-    const response = await fetch(`${config.relayerUrl}/api/v1/relayer/stellar/health`);
-    const data = await response.json();
-
+    const res = await fetch(`${baseUrl}/api/v1/relayer/stellar/health`, { headers });
+    const data = await res.json();
     return {
       healthy: data.status === 'healthy',
       balance: data.relayer?.balance,
@@ -252,14 +277,11 @@ export async function checkRelayerHealth(): Promise<{
 }
 
 export async function fetchClaimableBalances(address: string): Promise<ClaimableBalance[]> {
+  const { baseUrl, headers } = getStellarApiConfig();
   try {
-    const response = await fetch(`${config.relayerUrl}/api/v1/relayer/stellar/claimable-balances/${address}`);
-    const data = await response.json();
-
-    if (data.success) {
-      return data.balances;
-    }
-    return [];
+    const res = await fetch(`${baseUrl}/api/v1/relayer/stellar/claimable-balances/${address}`, { headers });
+    const data = await res.json();
+    return data.success ? data.balances : [];
   } catch (error) {
     console.error('Failed to fetch claimable balances:', error);
     return [];
@@ -269,27 +291,18 @@ export async function fetchClaimableBalances(address: string): Promise<Claimable
 export async function buildClaimTransaction(
   claimant: string,
   balanceId: string,
-  _asset?: string // unused but kept for signature compatibility if needed
+  _asset?: string
 ): Promise<StellarSdk.Transaction> {
-  // Call relayer to get the unsigned transaction XDR (fee = 0)
-  const response = await fetch(`${config.relayerUrl}/api/v1/relayer/stellar/claim`, {
+  const { baseUrl, headers } = getStellarApiConfig();
+  const res = await fetch(`${baseUrl}/api/v1/relayer/stellar/claim`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      claimant,
-      balanceId
-    }),
+    headers,
+    body: JSON.stringify({ claimant, balanceId }),
   });
-
-  const data = await response.json();
-
+  const data = await res.json();
   if (!data.success) {
     throw new Error(data.error || 'Failed to build claim transaction');
   }
-
-  // Parse the XDR back to a Transaction object
   return StellarSdk.TransactionBuilder.fromXDR(
     data.unsignedXDR,
     config.networkPassphrase

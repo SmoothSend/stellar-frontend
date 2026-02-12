@@ -8,10 +8,12 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Card } from './components/ui/card';
 import { Button } from './components/ui/button';
+import { SmartAccountPage } from './components/smart-account';
+import { Wallet } from 'lucide-react';
 
 function App() {
   const [address, setAddress] = useState<string | null>(null);
-  const [view, setView] = useState<'dashboard' | 'send'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'send' | 'smart-account'>('dashboard');
 
   return (
     <div className="min-h-screen">
@@ -28,7 +30,7 @@ function App() {
             <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl" />
 
             <div className="relative z-10">
-              {view === 'dashboard' ? (
+              {view === 'dashboard' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-300">
                   <BalanceDisplay address={address} />
 
@@ -45,6 +47,13 @@ function App() {
                       </svg>
                       Send Tokens
                     </Button>
+                    <Button
+                      className="flex-1 h-14 text-lg rounded-2xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/20 shadow-none"
+                      onClick={() => setView('smart-account')}
+                    >
+                      <Wallet className="w-5 h-5 mr-2" />
+                      Smart Account
+                    </Button>
                   </div>
 
                   <div className="pt-4 border-t border-white/5">
@@ -53,13 +62,22 @@ function App() {
                     </p>
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {view === 'send' && (
                 <TransferForm
                   senderAddress={address}
                   onCancel={() => setView('dashboard')}
                   onSuccess={() => {
                     // Stay on success view in TransferForm
                   }}
+                />
+              )}
+
+              {view === 'smart-account' && (
+                <SmartAccountPage
+                  ownerAddress={address}
+                  onBack={() => setView('dashboard')}
                 />
               )}
             </div>

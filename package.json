@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.2.0",
+    "@smoothsend/sdk": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-toast": "^1.2.2",

@@ -1,13 +1,38 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 
+const PROXY_URL = 'https://proxy.smoothsend.xyz';
+
+// ========== SMOOTHSEND SDK - Proxy routing (START) ==========
+// When VITE_SMOOTHSEND_API_KEY is set, ALL relayer calls go through proxy.smoothsend.xyz
+// Frontend never talks to relayer directly - SDK/proxy handles routing
+/** API base URL + headers. With API key: proxy. Without: direct relayer. */
+export function getStellarApiConfig(): {
+  baseUrl: string;
+  headers: Record<string, string>;
+} {
+  const apiKey = import.meta.env.VITE_SMOOTHSEND_API_KEY;
+  if (apiKey) {
+    return {
+      baseUrl: PROXY_URL,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'X-Chain': 'stellar',
+      },
+    };
+  }
+  return {
+    baseUrl: import.meta.env.VITE_RELAYER_URL || 'http://localhost:3001',
+    headers: { 'Content-Type': 'application/json' },
+  };
+}
+// ========== SMOOTHSEND SDK - Proxy routing (END) ==========
+
 export const config = {
   // Network
   network: 'testnet' as const,
   networkPassphrase: StellarSdk.Networks.TESTNET,
   horizonUrl: 'https://horizon-testnet.stellar.org',
-
-  // Relayer (set VITE_RELAYER_URL in .env or Vercel env vars)
-  relayerUrl: import.meta.env.VITE_RELAYER_URL || 'http://localhost:3001',
 
   // Assets
   assets: {

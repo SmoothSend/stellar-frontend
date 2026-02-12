@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { buildSmartPaymentTransaction, relayTransaction } from '../lib/stellar';
 import { signTransaction } from '../lib/wallet';
-import { config, AssetCode } from '../lib/config';
+import { config, AssetCode, getStellarApiConfig } from '../lib/config';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
@@ -32,37 +32,94 @@ export function TransferForm({ senderAddress, onSuccess, onCancel }: TransferFor
       return;
     }
 
+    // Validate address format
+    if (recipient.length !== 56 || (!recipient.startsWith('G') && !recipient.startsWith('C'))) {
+      setStatus({ type: 'error', message: 'Invalid address. Must be 56 characters starting with G or C.' });
+      return;
+    }
+
     setLoading(true);
+    const isCAddress = recipient.startsWith('C');
 
     try {
-      setStatus({ type: 'building', message: 'Checking recipient & building transaction...' });
-      const { transaction, isClaimable } = await buildSmartPaymentTransaction(
-        senderAddress,
-        recipient,
-        amount,
-        asset
-      );
+      if (isCAddress) {
+        // ── G → C Bridge: SAC.transfer via Soroban relayer ──
+        const { baseUrl, headers } = getStellarApiConfig();
 
-      setStatus({ type: 'signing', message: 'Check your wallet to sign...' });
-      const signedXDR = await signTransaction(transaction.toXDR());
+        setStatus({ type: 'building', message: 'Building Soroban bridge transfer...' });
+        const buildRes = await fetch(`${baseUrl}/api/v1/relayer/stellar/c-address/bridge-transfer`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            from: senderAddress,
+            destination: recipient,
+            asset: asset,
+            amount: amount,
+          }),
+        });
 
-      setStatus({ type: 'relaying', message: 'Sponsoring fee & submitting...' });
-      const result = await relayTransaction(signedXDR);
+        if (!buildRes.ok) {
+          const data = await buildRes.json().catch(() => ({}));
+          throw new Error(data.error || `Bridge build failed (${buildRes.status})`);
+        }
 
-      if (result.success && result.hash) {
+        const { unsignedXDR } = await buildRes.json();
+
+        setStatus({ type: 'signing', message: 'Sign in your wallet...' });
+        const signedXDR = await signTransaction(unsignedXDR);
+
+        setStatus({ type: 'relaying', message: 'Submitting via Soroban...' });
+        const submitRes = await fetch(`${baseUrl}/api/v1/relayer/stellar/c-address/submit-transfer`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ signedXDR }),
+        });
+
+        if (!submitRes.ok) {
+          const data = await submitRes.json().catch(() => ({}));
+          throw new Error(data.error || 'Bridge submit failed');
+        }
+
+        const result = await submitRes.json();
         setStatus({
           type: 'success',
-          message: isClaimable ? 'Claimable Balance Created!' : 'Payment Sent!',
-          hash: result.hash,
-          explorerUrl: result.explorerUrl,
-          isClaimable,
+          message: 'Bridged to C-Address!',
+          hash: result.txHash,
+          explorerUrl: result.explorerUrl || `https://stellar.expert/explorer/testnet/tx/${result.txHash}`,
+          isClaimable: false,
         });
-        onSuccess?.(result.hash);
+        onSuccess?.(result.txHash);
       } else {
-        setStatus({
-          type: 'error',
-          message: result.error || 'Transaction failed',
-        });
+        // ── G → G: Classic Horizon payment (existing flow) ──
+        setStatus({ type: 'building', message: 'Checking recipient & building transaction...' });
+        const { transaction, isClaimable } = await buildSmartPaymentTransaction(
+          senderAddress,
+          recipient,
+          amount,
+          asset
+        );
+
+        setStatus({ type: 'signing', message: 'Check your wallet to sign...' });
+        const signedXDR = await signTransaction(transaction.toXDR());
+
+        setStatus({ type: 'relaying', message: 'Sponsoring fee & submitting...' });
+        const result = await relayTransaction(signedXDR);
+
+        if (result.success && result.hash) {
+          setStatus({
+            type: 'success',
+            message: isClaimable ? 'Claimable Balance Created!' : 'Payment Sent!',
+            hash: result.hash,
+            explorerUrl: result.explorerUrl,
+            isClaimable,
+          });
+          onSuccess?.(result.hash);
+        } else {
+          setStatus({
+            type: 'error',
+            message: result.error || 'Transaction failed',
+          });
+        }
       }
     } catch (err: any) {
       setStatus({
@@ -178,9 +235,12 @@ export function TransferForm({ senderAddress, onSuccess, onCancel }: TransferFor
           <Input
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
-            placeholder="G..."
+            placeholder="G... or C..."
             className="font-mono text-sm"
           />
+          <p className="text-[10px] text-white/20">
+            Supports G-addresses (classic) and C-addresses (Soroban bridge)
+          </p>
         </div>
       </div>
 
